@@ -10,3 +10,4 @@ librosa
 tf2crf
 scikit-learn
 Cython
+madmom
