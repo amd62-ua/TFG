@@ -6,8 +6,7 @@ para iniciar  py -m venv venv
 pip install -r requirements.txt         
 py -m pip install --upgrade pip
 pip install madmom
-pip install openai-whisper
-from faster_whisper import WhisperModel
+pip install faster-whisper
 py -m streamlit run app/streamlit_app.py
 deactivate
 eliminar : Remove-Item -Recurse -Force venv
