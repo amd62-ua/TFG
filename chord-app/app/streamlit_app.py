@@ -2,15 +2,23 @@ import streamlit as st
 import tempfile
 from core.detector import DetectChords
 from core.audio import convert_to_wav
-import whisper
 from faster_whisper import WhisperModel
+import torch
+
 @st.cache_resource
 def load_whisper():
-    return WhisperModel(
-        "medium",
-        #device="cuda",
-        compute_type="float16"
-    ) #large-v3
+    if torch.cuda.is_available():
+        return WhisperModel(
+            "medium",
+            device="cuda",
+            compute_type="float16"
+        )
+    else:
+        return WhisperModel(
+            "small",
+            device="cpu",
+            compute_type="int8"
+        )
 
 class ChordSegment:
     def __init__(self, start, end, chord):
