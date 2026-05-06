@@ -6,7 +6,7 @@ from tensorflow.keras.layers import Input, Dense
 from tensorflow.keras.models import Model
 from tf2crf import CRF
 from sklearn import preprocessing
-
+from pathlib import Path
 
 
 
@@ -19,10 +19,11 @@ class DetectChords:
         self.num_frames = 2 * self.context_s + 1
 
         
-        self.crf_weights = "models/model_01/crf"
+        BASE_DIR = Path(__file__).resolve().parent.parent
 
-        
-        self.cnn_net = "models/cnn_extractor_fixed.h5"
+        self.crf_weights = BASE_DIR / "models" / "model_01" / "crf"
+
+        self.cnn_net = BASE_DIR / "models" / "cnn_extractor_fixed.h5"
 
     def get_chord_labels(self):
         roots = ['A','B','C','D','E','F','G']
