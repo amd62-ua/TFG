@@ -10,3 +10,5 @@ librosa
 tf2crf
 scikit-learn
 Cython
+madmon
+faster-whisper
