@@ -21,7 +21,7 @@ def load_whisper():
         )
     else:
         return WhisperModel(
-            "small",
+            "medium",
             device="cpu",
             compute_type="int8"
         )
