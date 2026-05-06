@@ -181,11 +181,13 @@ class DetectChords:
 
             chord_name = chord_labels[int(chord_id)]
 
-            timeline.append({
-                "chord": chord_name,
-                "start": round(start, 2),
-                "end": round(end, 2)
-            })
+            if chord_name != "N":
+
+                timeline.append({
+                    "chord": chord_name,
+                    "start": round(start, 2),
+                    "end": round(end, 2)
+                })
 
         timeline = self.compress_timeline(timeline)
 
