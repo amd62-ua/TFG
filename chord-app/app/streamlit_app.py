@@ -302,7 +302,7 @@ if vocals_path and instrumental_path:
             txt = build_text(
                 rows,
                 segs,
-                max_chars=48
+                max_chars=32
             )
 
             st.success("Procesado!")
