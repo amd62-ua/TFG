@@ -10,6 +10,9 @@ from core.detector import DetectChords
 from core.audio import convert_to_wav
 from faster_whisper import WhisperModel
 import torch
+import json
+import csv
+import io
 
 @st.cache_resource
 def load_whisper():
@@ -86,13 +89,14 @@ def merge_words(words, segs):
     return rows
 
 def build_text(rows, segs, max_chars=42):
-
+    
     out = []
 
     chord_line = ""
     lyric_line = ""
 
     rendered = set()
+    last_rendered_chord = None
 
     line_start = 0
 
@@ -127,12 +131,22 @@ def build_text(rows, segs, max_chars=42):
         while len(chord_line) < len(lyric_line):
             chord_line += " "
 
+        active_chords = []
+
         for s in segs:
 
-            if not (start <= s.start < end):
-                continue
+            if s.end >= start and s.start <= end:
+                active_chords.append(s)
+
+        for s in active_chords:
+            
 
             chord = s.chord
+
+            if chord == last_rendered_chord:
+                continue
+
+            
 
             key = (round(s.start, 2), chord)
 
@@ -140,6 +154,8 @@ def build_text(rows, segs, max_chars=42):
                 continue
 
             ratio = (s.start - start) / duration
+
+            ratio = max(0, min(ratio, 1))
 
             offset = int(ratio * len(word))
 
@@ -162,16 +178,37 @@ def build_text(rows, segs, max_chars=42):
             if overlap:
                 pos += 2
 
-            while len(chord_line) < pos + len(chord):
+            # asegurar longitud
+            while len(chord_line) < pos:
                 chord_line += " "
 
-            chord_line = (
-                chord_line[:pos]
-                + chord
-                + chord_line[pos + len(chord):]
-            )
+            # si hay overlap, mover a la derecha
+            while (
+                pos < len(chord_line)
+                and any(
+                    c != " "
+                    for c in chord_line[pos:pos + len(chord)]
+                )
+            ):
+                pos += 1
+
+            # insertar acorde sin borrar
+            if pos >= len(chord_line):
+
+                chord_line += " " * (pos - len(chord_line))
+                chord_line += chord
+
+            else:
+
+                chord_line = (
+                    chord_line[:pos]
+                    + chord
+                    + chord_line[pos:]
+                )
 
             rendered.add(key)
+
+            last_rendered_chord = chord
 
     if lyric_line:
 
@@ -266,9 +303,14 @@ else:
 
         st.audio(instrumental_path)
 
+if "processed" not in st.session_state:
+    st.session_state.processed = False
+
 if vocals_path and instrumental_path:
 
     if st.button("Procesar"):
+
+        st.session_state.processed = False
 
         with st.spinner("Procesando..."):
 
@@ -302,11 +344,121 @@ if vocals_path and instrumental_path:
             txt = build_text(
                 rows,
                 segs,
-                max_chars=32
+                max_chars=64
             )
 
-            st.success("Procesado!")
+            st.session_state.txt = txt
+            st.session_state.timeline = timeline
+            st.session_state.rows = rows
+            st.session_state.processed = True
 
-            st.subheader("🎤 Letra con acordes")
+if st.session_state.processed:
 
-            st.markdown(f"```\n{txt}\n```")
+    txt = st.session_state.txt
+    timeline = st.session_state.timeline
+    rows = st.session_state.rows
+
+    st.success("Procesado!")
+
+    st.subheader("🎤 Letra con acordes")
+
+    st.markdown(f"```\n{txt}\n```")
+
+    # TXT letra + acordes
+    st.download_button(
+        label="⬇️ Descargar letra + acordes",
+        data=txt,
+        file_name="letra_acordes.txt",
+        mime="text/plain"
+    )
+
+                # JSON timeline acordes
+    timeline_json = json.dumps(
+        timeline,
+        ensure_ascii=False,
+        indent=2
+    )
+
+    st.download_button(
+        label="⬇️ Descargar timeline acordes JSON",
+        data=timeline_json,
+        file_name="timeline_acordes.json",
+        mime="application/json"
+    )
+
+                # CSV timeline acordes
+    csv_buffer = io.StringIO()
+
+    writer = csv.writer(csv_buffer)
+
+    writer.writerow([
+        "start",
+        "end",
+        "chord"
+    ])
+
+    for t in timeline:
+
+        writer.writerow([
+            t["start"],
+            t["end"],
+            t["chord"]
+        ])
+
+    st.download_button(
+        label="⬇️ Descargar timeline acordes CSV",
+        data=csv_buffer.getvalue(),
+        file_name="timeline_acordes.csv",
+        mime="text/csv"
+    )
+
+                # Timeline letra
+    lyrics_timeline = []
+
+    for r in rows:
+
+        lyrics_timeline.append({
+            "word": r["word"],
+            "start": r["start"],
+            "end": r["end"]
+        })
+
+                # JSON letra
+    lyrics_json = json.dumps(
+        lyrics_timeline,
+        ensure_ascii=False,
+        indent=2
+    )
+
+    st.download_button(
+        label="⬇️ Descargar timeline letra JSON",
+        data=lyrics_json,
+        file_name="timeline_letra.json",
+        mime="application/json"
+    )
+
+                # CSV letra
+    lyrics_csv = io.StringIO()
+
+    writer = csv.writer(lyrics_csv)
+
+    writer.writerow([
+        "word",
+        "start",
+        "end"
+    ])
+
+    for w in lyrics_timeline:
+
+        writer.writerow([
+            w["word"],
+            w["start"],
+            w["end"]
+        ])
+
+    st.download_button(
+        label="⬇️ Descargar timeline letra CSV",
+        data=lyrics_csv.getvalue(),
+        file_name="timeline_letra.csv",
+        mime="text/csv"
+    )

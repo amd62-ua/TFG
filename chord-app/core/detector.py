@@ -69,7 +69,7 @@ class DetectChords:
         oh[np.arange(len(class_ids)), class_ids] = 1
         return oh
     
-    def compress_timeline(self, timeline, min_duration=0.8):
+    def compress_timeline(self, timeline, min_duration=1):
         if not timeline:
             return []
 
