@@ -1,5 +1,8 @@
 import sys
 from pathlib import Path
+from utils.random_songs import (
+    get_random_songs_txt
+)
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 sys.path.append(str(ROOT_DIR))
@@ -47,6 +50,18 @@ def transcribe_words(path, language=None):
     words = []
 
     for seg in segments:
+        seg_text = seg.text.lower().strip()
+
+        BLACKLIST = [
+            "subtítulos realizados por la comunidad de amara.org",
+            "amara.org"
+        ]
+
+        if any(
+            bad in seg_text
+            for bad in BLACKLIST
+        ):
+            continue
         for w in seg.words:
             words.append({
                 "word": w.word.strip(),
@@ -63,11 +78,17 @@ def find_chord(segs, t):
 
     return segs[-1].chord if segs else "N"
 
+
+
 def merge_words(words, segs):
 
     rows = []
 
     prev = None
+    BLACKLIST = [
+        "subtítulos realizados por la comunidad de amara.org",
+        "amara.org",
+    ]
 
     for w in words:
 
@@ -75,6 +96,14 @@ def merge_words(words, segs):
             segs,
             w["start"]
         )
+
+        text = w["word"].strip()
+
+        if any(
+            bad in text.lower()
+            for bad in BLACKLIST
+        ):
+            continue
 
         rows.append({
             "word": w["word"],
@@ -89,7 +118,7 @@ def merge_words(words, segs):
     return rows
 
 def build_text(rows, segs, max_chars=42):
-    
+
     out = []
 
     chord_line = ""
@@ -97,6 +126,70 @@ def build_text(rows, segs, max_chars=42):
 
     rendered = set()
     last_rendered_chord = None
+
+    # detectar gaps instrumentales
+    instrumental_gaps = []
+
+    for i in range(len(rows) - 1):
+
+        gap_start = rows[i]["end"]
+        gap_end = rows[i + 1]["start"]
+
+        gap_duration = gap_end - gap_start
+
+        # si hay más de 4 segundos sin voz
+        if gap_duration > 4:
+
+            instrumental_gaps.append({
+                "start": gap_start,
+                "end": gap_end
+            })
+
+    rendered_gaps = set()
+
+    def build_instrumental_block(chords):
+
+        line = "[Instrumental]\n"
+
+        last = None
+
+        for c in chords:
+
+            if c.chord == "N":
+                continue
+
+            if c.chord != last:
+
+                line += f"{c.chord}    "
+                last = c.chord
+
+        return line.strip()
+
+    # =========================
+    # INTRO instrumental
+    # =========================
+
+    if rows and segs:
+
+        first_word_time = rows[0]["start"]
+
+        intro_chords = [
+            s for s in segs
+            if (
+                s.start < first_word_time
+                and s.chord != "N"
+            )
+        ]
+
+        if intro_chords:
+
+            out.append(
+                build_instrumental_block(
+                    intro_chords
+                )
+            )
+
+            out.append("")
 
     line_start = 0
 
@@ -107,9 +200,77 @@ def build_text(rows, segs, max_chars=42):
         start = r["start"]
         end = r["end"]
 
+        # =========================
+        # Instrumentales intermedios
+        # =========================
+
+        for gap in instrumental_gaps:
+
+            key = (
+                round(gap["start"], 2),
+                round(gap["end"], 2)
+            )
+
+            if key in rendered_gaps:
+                continue
+
+            if start >= gap["end"]:
+
+                instrumental_chords = [
+                    s for s in segs
+                    if (
+                        s.start >= gap["start"]
+                        and s.end <= gap["end"]
+                        and s.chord != "N"
+                    )
+                ]
+
+                if instrumental_chords:
+
+                    # cerrar línea actual
+                    if lyric_line:
+
+                        out.append(chord_line.rstrip())
+                        out.append(lyric_line.rstrip())
+                        out.append("")
+
+                        chord_line = ""
+                        lyric_line = ""
+
+                    out.append(
+                        build_instrumental_block(
+                            instrumental_chords
+                        )
+                    )
+
+                    out.append("")
+
+                    rendered_gaps.add(key)
+
         duration = max(end - start, 0.001)
 
         add = word + " "
+
+        # salto de línea por pausa + mayúscula
+        if lyric_line:
+
+            prev_end = rows[rows.index(r) - 1]["end"]
+
+            pause = start - prev_end
+
+            if (
+                pause > 1.2
+                and word[:1].isupper()
+            ):
+
+                out.append(chord_line.rstrip())
+                out.append(lyric_line.rstrip())
+                out.append("")
+
+                chord_line = ""
+                lyric_line = ""
+
+                rendered = set()
 
         if len(lyric_line) + len(add) > max_chars:
 
@@ -135,18 +296,19 @@ def build_text(rows, segs, max_chars=42):
 
         for s in segs:
 
-            if s.end >= start and s.start <= end:
+            if (
+                s.end >= start
+                and s.start <= end
+                and s.chord != "N"
+            ):
                 active_chords.append(s)
 
         for s in active_chords:
-            
 
             chord = s.chord
 
             if chord == last_rendered_chord:
                 continue
-
-            
 
             key = (round(s.start, 2), chord)
 
@@ -178,11 +340,9 @@ def build_text(rows, segs, max_chars=42):
             if overlap:
                 pos += 2
 
-            # asegurar longitud
             while len(chord_line) < pos:
                 chord_line += " "
 
-            # si hay overlap, mover a la derecha
             while (
                 pos < len(chord_line)
                 and any(
@@ -192,10 +352,12 @@ def build_text(rows, segs, max_chars=42):
             ):
                 pos += 1
 
-            # insertar acorde sin borrar
             if pos >= len(chord_line):
 
-                chord_line += " " * (pos - len(chord_line))
+                chord_line += " " * (
+                    pos - len(chord_line)
+                )
+
                 chord_line += chord
 
             else:
@@ -210,6 +372,10 @@ def build_text(rows, segs, max_chars=42):
 
             last_rendered_chord = chord
 
+    # =========================
+    # última línea
+    # =========================
+
     if lyric_line:
 
         out.append(chord_line.rstrip())
@@ -221,9 +387,29 @@ st.title("🎵 Acordes + letra sincronizada")
 
 lang = st.selectbox(
     "Idioma",
-    ["auto", "es", "en"],
+    #["auto", "es", "en"],
+    ["es"],
     index=0
 )
+
+st.divider()
+
+st.subheader(
+    "🎲 Generador canciones aleatorias"
+)
+
+if st.button(
+    "Generar canciones"
+):
+
+    txt_random = get_random_songs_txt()
+
+    st.download_button(
+        label="⬇️ Descargar canciones",
+        data=txt_random,
+        file_name="canciones_random.txt",
+        mime="text/plain"
+    )
 
 mode = st.radio(
     "Modo",
