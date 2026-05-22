@@ -1,11 +1,12 @@
 import sys
 from pathlib import Path
+ROOT_DIR = Path(__file__).resolve().parent.parent
+sys.path.append(str(ROOT_DIR))
 from utils.random_songs import (
     get_random_songs_txt
 )
 
-ROOT_DIR = Path(__file__).resolve().parent.parent
-sys.path.append(str(ROOT_DIR))
+
 
 import streamlit as st
 import tempfile
