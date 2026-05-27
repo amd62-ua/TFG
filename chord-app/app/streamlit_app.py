@@ -271,7 +271,7 @@ def build_text(rows, segs, max_chars=42):
                 chord_line = ""
                 lyric_line = ""
 
-                rendered = set()
+                #rendered = set()
 
         if len(lyric_line) + len(add) > max_chars:
 
@@ -282,7 +282,7 @@ def build_text(rows, segs, max_chars=42):
             chord_line = ""
             lyric_line = ""
 
-            rendered = set()
+           # rendered = set()
 
             line_start = start
 
