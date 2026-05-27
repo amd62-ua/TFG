@@ -35,7 +35,6 @@ FOLK_SONGS = [
     "La Magallonera - Juanjo Bona",
     "Mis Tías - Juanjo Bona",
     "Moncayo - Juanjo Bona",
-    "Malamente - Rosalia",
     "Me miras pero no me ves - María José Llergo",
     "Que viva España - Manolo Escobar",
     "A tu vera - Salma, Juanjo Bona",
