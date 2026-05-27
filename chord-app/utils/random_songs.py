@@ -4,7 +4,7 @@ import random
 POP_SONGS = [
     "Blanco y Negro - Malú",
     "Como hablar - Amaral",
-    "Con la luna llena - Melendi",
+    "Sé lo que hicisteis - Melendi",
     "Cruz de navajas - Mecano",
     "El principio de algo - LaLaLoveYou",
     "Inmortal - La Oreja de Van Gogh",
