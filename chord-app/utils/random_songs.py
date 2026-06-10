@@ -76,7 +76,7 @@ SONGS = [
 def pick_songs(song_list, genre):
     song_list = list(song_list)
 
-    n = 1 if genre == "SONGS" else 3
+    n = 1 if genre == "Canción" else 3
 
     chosen = random.sample(song_list, n)
 
@@ -89,7 +89,7 @@ def get_random_songs_txt(genre="ALL"):
 
     if genre == "SONGS":
         selected.extend(
-            pick_songs(SONGS, "SONGS")
+            pick_songs(SONGS, "Canción")
         )
     else:
         selected.extend(
