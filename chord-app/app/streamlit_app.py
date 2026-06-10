@@ -403,12 +403,25 @@ if st.button(
     "Generar canciones"
 ):
 
-    txt_random = get_random_songs_txt()
+    txt_random = get_random_songs_txt("ALL")
 
     st.download_button(
         label="⬇️ Descargar canciones",
         data=txt_random,
         file_name="canciones_random.txt",
+        mime="text/plain"
+    )
+
+if st.button(
+    "Generar 1 cancion"
+):
+
+    txt_random = get_random_songs_txt("SONGS")
+
+    st.download_button(
+        label="⬇️ Descargar cancion",
+        data=txt_random,
+        file_name="cancion_random.txt",
         mime="text/plain"
     )
 
