@@ -403,7 +403,7 @@ if st.button(
     "Generar canciones"
 ):
 
-    txt_random = get_random_songs_txt("ALL")
+    txt_random = get_random_songs_txt()
 
     st.download_button(
         label="⬇️ Descargar canciones",

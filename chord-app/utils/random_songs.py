@@ -83,7 +83,7 @@ def pick_songs(song_list, genre):
     return [f"{genre} | {song}" for song in chosen]
 
 
-def get_random_songs_txt(genre):
+def get_random_songs_txt(genre="ALL"):
 
     selected = []
 
