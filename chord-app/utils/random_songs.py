@@ -41,7 +41,7 @@ FOLK_SONGS = [
     "Viva el pasodoble - Rocío Jurado"
 ]
 
-SONGS = {
+SONGS = [
     "Blanco y Negro - Malú",
     "Como hablar - Amaral",
     "Con solo una sonrisa - Melendi",
@@ -71,29 +71,16 @@ SONGS = {
     "Que viva España - Manolo Escobar",
     "A tu vera - Salma, Juanjo Bona",
     "Viva el pasodoble - Rocío Jurado"
- }
-
+]
 
 def pick_songs(song_list, genre):
+    song_list = list(song_list)
 
-    chosen = random.sample(song_list, 3)
+    n = 1 if genre == "SONGS" else 3
 
-    if genre == "SONGS":
-        chosen = random.sample(song_list, 1)
-    else:
-        chosen = random.sample(song_list, 3)
+    chosen = random.sample(song_list, n)
 
-
-    result = []
-
-    for song in chosen:
-
-
-        result.append(
-            f"{genre} | {song}"
-        )
-
-    return result
+    return [f"{genre} | {song}" for song in chosen]
 
 
 def get_random_songs_txt(genre):
