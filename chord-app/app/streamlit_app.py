@@ -20,7 +20,15 @@ from utils.random_songs import get_random_songs
 PASSWORD = "T2f02G6"
 BASE_SONGS_DIR = ROOT_DIR / "Canciones"
 
+st.write("ROOT_DIR:", ROOT_DIR)
 
+songs_dir = ROOT_DIR / "Canciones"
+
+st.write("Existe Canciones:", songs_dir.exists())
+
+if songs_dir.exists():
+    st.write("Contenido:")
+    st.write([p.name for p in songs_dir.iterdir()])
 # --------------------------------------------------
 # CONFIGURACIÓN INICIAL
 # --------------------------------------------------
