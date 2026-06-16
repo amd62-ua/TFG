@@ -8,7 +8,7 @@ POP_SONGS = [
     "El principio de algo - LaLaLoveYou & Samuraï",
     "Inmortal - La Oreja de Van Gogh",
     "rompeolas - Martin",
-    "Si no estás - El sueño de morfeo",
+    "Si no estás - El Sueño de Morfeo",
     "SUPERESTRELLA - Aitana",
     "Zapatillas - El canto del loco"
 ]
@@ -36,7 +36,7 @@ FOLK_SONGS = [
     "Juanjo Bona - Moncayo",
     "Me miras pero no me ves - María José Llergo",
     "Que viva España - Manolo Escobar",
-    "A tu vera - Salma, Juanjo Bona",
+    "Salma, Juanjo Bona - A Tu Vera",
     "Viva el pasodoble - Rocío Jurado"
 ]
 
