@@ -6,7 +6,7 @@ import json
 import csv
 import io
 import base64
-
+import shutil
 import streamlit as st
 import streamlit.components.v1 as components
 
@@ -15,11 +15,69 @@ sys.path.append(str(ROOT_DIR))
 
 from core.song_processor import process_song
 from utils.random_songs import get_random_songs
-
+import gdown
+with open("utils/canciones.json", encoding="utf-8") as f:
+    SONGS = json.load(f)
 
 PASSWORD = "T2f02G6"
-BASE_SONGS_DIR = ROOT_DIR / "canciones"
 
+
+import gdown
+from pathlib import Path
+
+TMP_DIR = Path("tmp_songs")
+TMP_DIR.mkdir(exist_ok=True)
+
+import shutil
+
+def download_song(preview_id, full_id):
+
+    if TMP_DIR.exists():
+        shutil.rmtree(TMP_DIR)
+
+    TMP_DIR.mkdir(exist_ok=True)
+
+    preview_path = TMP_DIR / "preview.mp3"
+    full_path = TMP_DIR / "full.mp3"
+
+    progress_text = st.empty()
+    progress_bar = st.progress(0)
+
+    progress_text.info("Cragando fragmento de audio...")
+
+    gdown.download(
+        f"https://drive.google.com/uc?id={preview_id}",
+        str(preview_path),
+        quiet=True
+    )
+
+    progress_bar.progress(50)
+
+    progress_text.info("Cargando canción...")
+
+    gdown.download(
+        f"https://drive.google.com/uc?id={full_id}",
+        str(full_path),
+        quiet=True
+    )
+
+    progress_bar.progress(100)
+
+    progress_text.success("Canción cargada correctamente")
+
+    return str(preview_path), str(full_path)
+
+def download_drive_file(file_id, output_path):
+
+    url = f"https://drive.google.com/uc?id={file_id}"
+
+    gdown.download(
+        url,
+        str(output_path),
+        quiet=False
+    )
+
+    return output_path
 
 # --------------------------------------------------
 # CONFIGURACIÓN INICIAL
@@ -369,21 +427,7 @@ with tab2:
                 genre = song_data["genre"]
                 song = song_data["song"]
 
-                song_dir = (
-                    BASE_SONGS_DIR
-                    / genre
-                    / song
-                )
-
-                preview_file = random.choice([
-                    song_dir / "A.mp3",
-                    song_dir / "B.mp3"
-                ])
-
-                full_song = (
-                    song_dir
-                    / f"{song}.mp3"
-                )
+                 
 
                 st.markdown(
                     f"""
@@ -410,14 +454,22 @@ with tab2:
                     use_container_width=True
                 ):
 
-                    st.session_state.eval_preview_song = str(
-                        preview_file
+                    song_info = SONGS[genre][song]
+
+                    preview_id = random.choice([
+                        song_info["preview_a"],
+                        song_info["preview_b"]
+                    ])
+
+                    full_id = song_info["full"]
+
+                    preview_path, full_path = download_song(
+                        preview_id,
+                        full_id
                     )
 
-                    st.session_state.eval_selected_song = str(
-                        full_song
-                    )
-
+                    st.session_state.eval_preview_song = preview_path
+                    st.session_state.eval_selected_song = full_path
                     st.session_state.eval_selected_song_name = song
                     st.session_state.eval_processed = False
 
