@@ -10,4 +10,3 @@ librosa
 tf2crf
 scikit-learn
 Cython
-gdown==5.2.0

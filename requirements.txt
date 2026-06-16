@@ -21,3 +21,4 @@ git+https://github.com/CPJKU/madmom.git
 torch
 torchaudio
 faster-whisper
+gdown
