@@ -445,7 +445,7 @@ with tab2:
                         padding:10px;
                         margin-bottom:10px;
                     ">
-                        <strong>{genre} - {song}</strong>
+                        <strong>{genre} : {song}</strong>
                     </div>
                     """,
                     unsafe_allow_html=True
@@ -473,7 +473,7 @@ with tab2:
 
                     st.session_state.eval_preview_song = preview_path
                     st.session_state.eval_selected_song = full_path
-                    st.session_state.eval_selected_song_name = f"{genre} - {song}"
+                    st.session_state.eval_selected_song_name = f"{genre} : {song}"
                     st.session_state.eval_processed = False
 
     if st.session_state.eval_selected_song:
