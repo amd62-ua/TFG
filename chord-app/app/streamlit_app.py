@@ -158,7 +158,14 @@ with tab1:
             st.session_state.main_processed = False
 
             with st.spinner("Procesando..."):
+                from pathlib import Path
 
+                st.write("Archivo:", st.session_state.eval_selected_song)
+
+                st.write(
+                    "Existe:",
+                    Path(st.session_state.eval_selected_song).exists()
+                )
                 txt, timeline, rows = process_song(
                     vocals_path=vocals_path,
                     instrumental_path=instrumental_path,
