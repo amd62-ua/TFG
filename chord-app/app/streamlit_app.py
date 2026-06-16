@@ -445,7 +445,7 @@ with tab2:
                         padding:10px;
                         margin-bottom:10px;
                     ">
-                        <strong>{song}</strong>
+                        <strong>{genre} - {song}</strong>
                     </div>
                     """,
                     unsafe_allow_html=True
