@@ -473,7 +473,7 @@ with tab2:
 
                     st.session_state.eval_preview_song = preview_path
                     st.session_state.eval_selected_song = full_path
-                    st.session_state.eval_selected_song_name = song
+                    st.session_state.eval_selected_song_name = f"{genre} - {song}"
                     st.session_state.eval_processed = False
 
     if st.session_state.eval_selected_song:
