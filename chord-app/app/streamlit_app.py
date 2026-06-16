@@ -9,6 +9,9 @@ import base64
 import shutil
 import streamlit as st
 import streamlit.components.v1 as components
+import os
+
+print("PWD:", os.getcwd())
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 sys.path.append(str(ROOT_DIR))
