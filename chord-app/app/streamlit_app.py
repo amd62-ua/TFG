@@ -9,9 +9,6 @@ import base64
 import shutil
 import streamlit as st
 import streamlit.components.v1 as components
-import os
-
-print("PWD:", os.getcwd())
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 sys.path.append(str(ROOT_DIR))
@@ -19,9 +16,12 @@ sys.path.append(str(ROOT_DIR))
 from core.song_processor import process_song
 from utils.random_songs import get_random_songs
 import gdown
-with open("utils/canciones.json", encoding="utf-8") as f:
-    SONGS = json.load(f)
+with open(
+    ROOT_DIR / "utils" / "canciones.json",
+    encoding="utf-8"
+) as f:
 
+    SONGS = json.load(f)
 PASSWORD = "T2f02G6"
 
 
