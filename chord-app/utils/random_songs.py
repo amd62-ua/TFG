@@ -4,13 +4,12 @@ import random
 POP_SONGS = [
     "Blanco y Negro - Malú",
     "Como hablar - Amaral",
-    "Con solo una sonrisa - Melendi",
     "Cruz de navajas - Mecano",
-    "El principio de algo - LaLaLoveYou",
+    "El principio de algo - LaLaLoveYou & Samuraï",
     "Inmortal - La Oreja de Van Gogh",
-    "Rompeolas - Martin",
+    "rompeolas - Martin",
     "Si no estás - El sueño de morfeo",
-    "Superestrella - Aitana",
+    "SUPERESTRELLA - Aitana",
     "Zapatillas - El canto del loco"
 ]
 
@@ -22,91 +21,80 @@ INDIE_SONGS = [
     "El Destello - Juanjo Bona, Martin",
     "Nada debería fallar - La buena vida",
     "Nadadora - Martin",
-    "Nananai - Amaia",
+    "Nanai - Amaia",
     "Pekin - El buen hijo",
-    "Un día más (de septiembre) - Malmo 404",
+    "Un dia más (de septiembre) - Malmö 404",
     "Voy con todo - Ralphie choo"
 ]
 
 
 FOLK_SONGS = [
     "Eaea - Blanca Paloma",
-    "Mi estrella blanca - Fondo Flamenco",
-    "La Magallonera - Juanjo Bona",
-    "Mis Tías - Juanjo Bona",
-    "Moncayo - Juanjo Bona",
+    "Fondo Flamenco - Mi estrella blanca",
+    "Juanjo Bona - La Magallonera",
+    "Juanjo Bona - Mis Tías",
+    "Juanjo Bona - Moncayo",
     "Me miras pero no me ves - María José Llergo",
     "Que viva España - Manolo Escobar",
     "A tu vera - Salma, Juanjo Bona",
     "Viva el pasodoble - Rocío Jurado"
 ]
 
-SONGS = [
-    "Blanco y Negro - Malú",
-    "Como hablar - Amaral",
-    "Con solo una sonrisa - Melendi",
-    "Cruz de navajas - Mecano",
-    "El principio de algo - LaLaLoveYou",
-    "Inmortal - La Oreja de Van Gogh",
-    "Rompeolas - Martin",
-    "Si no estás - El sueño de morfeo",
-    "Superestrella - Aitana",
-    "Zapatillas - El canto del loco",
-    "El lago de mi pena - Barry B, Gara Durán",
-    "Dame Estrellas o Limones - Family",
-    "Déjalo ir - Martin",
-    "El Destello - Juanjo Bona, Martin",
-    "Nada debería fallar - La buena vida",
-    "Nadadora - Martin",
-    "Nananai - Amaia",
-    "Pekin - El buen hijo",
-    "Un día más (de septiembre) - Malmo 404",
-    "Voy con todo - Ralphie choo",
-    "Eaea - Blanca Paloma",
-    "Mi estrella blanca - Fondo Flamenco",
-    "La Magallonera - Juanjo Bona",
-    "Mis Tías - Juanjo Bona",
-    "Moncayo - Juanjo Bona",
-    "Me miras pero no me ves - María José Llergo",
-    "Que viva España - Manolo Escobar",
-    "A tu vera - Salma, Juanjo Bona",
-    "Viva el pasodoble - Rocío Jurado"
-]
+def get_random_songs(num_songs=9):
+    if num_songs == 1:
 
-def pick_songs(song_list, genre):
-    song_list = list(song_list)
+        genre = random.choice([
+            "Pop",
+            "Indie",
+            "Folklore Español"
+        ])
 
-    n = 1 if genre == "Canción" else 3
+        if genre == "Pop":
+            song = random.choice(POP_SONGS)
 
-    chosen = random.sample(song_list, n)
+        elif genre == "Indie":
+            song = random.choice(INDIE_SONGS)
 
-    return [f"{genre} | {song}" for song in chosen]
+        else:
+            song = random.choice(FOLK_SONGS)
 
+        return [
+            {
+                "genre": genre,
+                "song": song
+            }
+        ]
 
-def get_random_songs_txt(genre="ALL"):
+    songs = []
 
-    selected = []
+    for song in random.sample(
+        POP_SONGS,
+        3
+    ):
+        songs.append({
+            "genre": "Pop",
+            "song": song
+        })
 
-    if genre == "SONGS":
-        selected.extend(
-            pick_songs(SONGS, "Canción")
-        )
-    else:
-        selected.extend(
-            pick_songs(POP_SONGS, "Pop")
-        )
+    for song in random.sample(
+        INDIE_SONGS,
+        3
+    ):
+        songs.append({
+            "genre": "Indie",
+            "song": song
+        })
 
-        selected.extend(
-            pick_songs(INDIE_SONGS, "Indie")
-        )
+    for song in random.sample(
+        FOLK_SONGS,
+        3
+    ):
+        songs.append({
+            "genre": "Folklore Español",
+            "song": song
+        })
 
-        selected.extend(
-            pick_songs(
-                FOLK_SONGS,
-                "Folklore Español"
-            )
-        )
+    random.shuffle(songs)
 
-    return "\n".join(selected)
+    return songs
 
-    

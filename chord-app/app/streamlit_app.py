@@ -1,664 +1,582 @@
 import sys
 from pathlib import Path
-ROOT_DIR = Path(__file__).resolve().parent.parent
-sys.path.append(str(ROOT_DIR))
-from utils.random_songs import (
-    get_random_songs_txt
-)
-
-
-
-import streamlit as st
 import tempfile
-from core.detector import DetectChords
-from core.audio import convert_to_wav
-from faster_whisper import WhisperModel
-import torch
+import random
 import json
 import csv
 import io
+import base64
 
-@st.cache_resource
-def load_whisper():
-    if torch.cuda.is_available():
-        return WhisperModel(
-            "medium",
-            device="cuda",
-            compute_type="float16"
-        )
-    else:
-        return WhisperModel(
-            "small",
-            device="cpu",
-            compute_type="int8"
-        )
+import streamlit as st
+import streamlit.components.v1 as components
 
-class ChordSegment:
-    def __init__(self, start, end, chord):
-        self.start = start
-        self.end = end
-        self.chord = chord
+ROOT_DIR = Path(__file__).resolve().parent.parent
+sys.path.append(str(ROOT_DIR))
 
-def transcribe_words(path, language=None):
-    model = load_whisper()
+from core.song_processor import process_song
+from utils.random_songs import get_random_songs
 
-    segments, _ = model.transcribe(
-        path,
-        language=language,
-        word_timestamps=True
+
+PASSWORD = "T2f02G6"
+BASE_SONGS_DIR = ROOT_DIR / "Canciones"
+
+
+# --------------------------------------------------
+# CONFIGURACIÓN INICIAL
+# --------------------------------------------------
+
+st.set_page_config(
+    page_title="Acordes + letra",
+    layout="wide"
+)
+
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+
+if "main_processed" not in st.session_state:
+    st.session_state.main_processed = False
+
+if "eval_songs" not in st.session_state:
+    st.session_state.eval_songs = None
+
+if "eval_selected_song" not in st.session_state:
+    st.session_state.eval_selected_song = None
+
+if "eval_preview_song" not in st.session_state:
+    st.session_state.eval_preview_song = None
+
+if "eval_selected_song_name" not in st.session_state:
+    st.session_state.eval_selected_song_name = ""
+
+if "eval_processed" not in st.session_state:
+    st.session_state.eval_processed = False
+
+
+tab1, tab2 = st.tabs([
+    "🎵 Procesador",
+    "📊 Evaluación"
+])
+
+
+# ==================================================
+# TAB 1 - PROCESADOR NORMAL
+# ==================================================
+
+with tab1:
+
+    st.title("🎵 Acordes + letra sincronizada")
+
+    main_lang = st.selectbox(
+        "Idioma",
+        ["es"],
+        index=0,
+        key="main_lang"
     )
 
-    words = []
+    st.divider()
 
-    for seg in segments:
-        seg_text = seg.text.lower().strip()
+    mode = st.radio(
+        "Modo",
+        [
+            "Audio completo",
+            "Voz + instrumental separados"
+        ],
+        key="main_mode"
+    )
 
-        BLACKLIST = [
-            "subtítulos realizados por la comunidad de amara.org",
-            "amara.org"
-        ]
+    vocals_path = None
+    instrumental_path = None
 
-        if any(
-            bad in seg_text
-            for bad in BLACKLIST
-        ):
-            continue
-        for w in seg.words:
-            words.append({
-                "word": w.word.strip(),
-                "start": float(w.start),
-                "end": float(w.end),
-            })
+    if mode == "Audio completo":
 
-    return words
-
-def find_chord(segs, t):
-    for s in segs:
-        if s.start <= t < s.end:
-            return s.chord
-
-    return segs[-1].chord if segs else "N"
-
-
-
-def merge_words(words, segs):
-
-    rows = []
-
-    prev = None
-    BLACKLIST = [
-        "subtítulos realizados por la comunidad de amara.org",
-        "amara.org",
-    ]
-
-    for w in words:
-
-        chord = find_chord(
-            segs,
-            w["start"]
+        uploaded = st.file_uploader(
+            "Sube audio",
+            type=["mp3", "wav"],
+            key="main_full_audio"
         )
 
-        text = w["word"].strip()
+        if uploaded:
 
-        if any(
-            bad in text.lower()
-            for bad in BLACKLIST
+            with tempfile.NamedTemporaryFile(
+                delete=False,
+                suffix=".mp3"
+            ) as tmp:
+
+                tmp.write(uploaded.read())
+                full_path = tmp.name
+
+            st.audio(full_path)
+
+            vocals_path = full_path
+            instrumental_path = full_path
+
+    else:
+
+        vocals = st.file_uploader(
+            "Sube archivo de voz",
+            type=["mp3", "wav"],
+            key="main_vocals"
+        )
+
+        instrumental = st.file_uploader(
+            "Sube instrumental",
+            type=["mp3", "wav"],
+            key="main_instrumental"
+        )
+
+        if vocals:
+
+            with tempfile.NamedTemporaryFile(
+                delete=False,
+                suffix=".mp3"
+            ) as tmp:
+
+                tmp.write(vocals.read())
+                vocals_path = tmp.name
+
+            st.audio(vocals_path)
+
+        if instrumental:
+
+            with tempfile.NamedTemporaryFile(
+                delete=False,
+                suffix=".mp3"
+            ) as tmp:
+
+                tmp.write(instrumental.read())
+                instrumental_path = tmp.name
+
+            st.audio(instrumental_path)
+
+    if vocals_path and instrumental_path:
+
+        if st.button(
+            "Procesar",
+            key="main_process"
         ):
-            continue
 
-        rows.append({
-            "word": w["word"],
-            "start": w["start"],
-            "end": w["end"],
-            "chord": chord,
-            "show_chord": chord != prev
-        })
+            st.session_state.main_processed = False
 
-        prev = chord
+            with st.spinner("Procesando..."):
 
-    return rows
+                txt, timeline, rows = process_song(
+                    vocals_path=vocals_path,
+                    instrumental_path=instrumental_path,
+                    language=main_lang
+                )
 
-def build_text(rows, segs, max_chars=42):
+                st.session_state.main_txt = txt
+                st.session_state.main_timeline = timeline
+                st.session_state.main_rows = rows
+                st.session_state.main_processed = True
 
-    out = []
+    if st.session_state.main_processed:
 
-    chord_line = ""
-    lyric_line = ""
+        txt = st.session_state.main_txt
+        timeline = st.session_state.main_timeline
+        rows = st.session_state.main_rows
 
-    rendered = set()
-    last_rendered_chord = None
+        st.success("Procesado!")
 
-    # detectar gaps instrumentales
-    instrumental_gaps = []
+        st.subheader("🎤 Letra con acordes")
 
-    for i in range(len(rows) - 1):
+        st.markdown(
+            f"```\n{txt}\n```"
+        )
 
-        gap_start = rows[i]["end"]
-        gap_end = rows[i + 1]["start"]
+        st.download_button(
+            label="⬇️ Descargar letra + acordes",
+            data=txt,
+            file_name="letra_acordes.txt",
+            mime="text/plain",
+            key="main_download_txt"
+        )
 
-        gap_duration = gap_end - gap_start
+        timeline_json = json.dumps(
+            timeline,
+            ensure_ascii=False,
+            indent=2
+        )
 
-        # si hay más de 4 segundos sin voz
-        if gap_duration > 4:
+        st.download_button(
+            label="⬇️ Descargar timeline acordes JSON",
+            data=timeline_json,
+            file_name="timeline_acordes.json",
+            mime="application/json",
+            key="main_download_chords_json"
+        )
 
-            instrumental_gaps.append({
-                "start": gap_start,
-                "end": gap_end
-            })
+        csv_buffer = io.StringIO()
+        writer = csv.writer(csv_buffer)
 
-    rendered_gaps = set()
+        writer.writerow([
+            "start",
+            "end",
+            "chord"
+        ])
 
-    def build_instrumental_block(chords):
+        for t in timeline:
 
-        line = "[Instrumental]\n"
+            writer.writerow([
+                t["start"],
+                t["end"],
+                t["chord"]
+            ])
 
-        last = None
+        st.download_button(
+            label="⬇️ Descargar timeline acordes CSV",
+            data=csv_buffer.getvalue(),
+            file_name="timeline_acordes.csv",
+            mime="text/csv",
+            key="main_download_chords_csv"
+        )
 
-        for c in chords:
-
-            if c.chord == "N":
-                continue
-
-            if c.chord != last:
-
-                line += f"{c.chord}    "
-                last = c.chord
-
-        return line.strip()
-
-    # =========================
-    # INTRO instrumental
-    # =========================
-
-    if rows and segs:
-
-        first_word_time = rows[0]["start"]
-
-        intro_chords = [
-            s for s in segs
-            if (
-                s.start < first_word_time
-                and s.chord != "N"
-            )
+        lyrics_timeline = [
+            {
+                "word": r["word"],
+                "start": r["start"],
+                "end": r["end"]
+            }
+            for r in rows
         ]
 
-        if intro_chords:
+        lyrics_json = json.dumps(
+            lyrics_timeline,
+            ensure_ascii=False,
+            indent=2
+        )
 
-            out.append(
-                build_instrumental_block(
-                    intro_chords
-                )
-            )
+        st.download_button(
+            label="⬇️ Descargar timeline letra JSON",
+            data=lyrics_json,
+            file_name="timeline_letra.json",
+            mime="application/json",
+            key="main_download_lyrics_json"
+        )
 
-            out.append("")
+        lyrics_csv = io.StringIO()
+        writer = csv.writer(lyrics_csv)
 
-    line_start = 0
+        writer.writerow([
+            "word",
+            "start",
+            "end"
+        ])
 
-    for r in rows:
+        for w in lyrics_timeline:
 
-        word = r["word"]
+            writer.writerow([
+                w["word"],
+                w["start"],
+                w["end"]
+            ])
 
-        start = r["start"]
-        end = r["end"]
+        st.download_button(
+            label="⬇️ Descargar timeline letra CSV",
+            data=lyrics_csv.getvalue(),
+            file_name="timeline_letra.csv",
+            mime="text/csv",
+            key="main_download_lyrics_csv"
+        )
 
-        # =========================
-        # Instrumentales intermedios
-        # =========================
 
-        for gap in instrumental_gaps:
+# ==================================================
+# TAB 2 - EVALUACIÓN
+# ==================================================
 
-            key = (
-                round(gap["start"], 2),
-                round(gap["end"], 2)
-            )
+with tab2:
 
-            if key in rendered_gaps:
-                continue
+    st.title("📊 Evaluación")
 
-            if start >= gap["end"]:
+    if not st.session_state.authenticated:
 
-                instrumental_chords = [
-                    s for s in segs
-                    if (
-                        s.start >= gap["start"]
-                        and s.end <= gap["end"]
-                        and s.chord != "N"
-                    )
-                ]
+        st.subheader("🔒 Acceso restringido")
 
-                if instrumental_chords:
+        password = st.text_input(
+            "Contraseña",
+            type="password",
+            key="eval_password"
+        )
 
-                    # cerrar línea actual
-                    if lyric_line:
+        if st.button(
+            "Entrar",
+            key="eval_login"
+        ):
 
-                        out.append(chord_line.rstrip())
-                        out.append(lyric_line.rstrip())
-                        out.append("")
+            if password == PASSWORD:
 
-                        chord_line = ""
-                        lyric_line = ""
-
-                    out.append(
-                        build_instrumental_block(
-                            instrumental_chords
-                        )
-                    )
-
-                    out.append("")
-
-                    rendered_gaps.add(key)
-
-        duration = max(end - start, 0.001)
-
-        add = word + " "
-
-        # salto de línea por pausa + mayúscula
-        if lyric_line:
-
-            prev_end = rows[rows.index(r) - 1]["end"]
-
-            pause = start - prev_end
-
-            if (
-                pause > 1.2
-                and word[:1].isupper()
-            ):
-
-                out.append(chord_line.rstrip())
-                out.append(lyric_line.rstrip())
-                out.append("")
-
-                chord_line = ""
-                lyric_line = ""
-
-                #rendered = set()
-
-        if len(lyric_line) + len(add) > max_chars:
-
-            out.append(chord_line.rstrip())
-            out.append(lyric_line.rstrip())
-            out.append("")
-
-            chord_line = ""
-            lyric_line = ""
-
-           # rendered = set()
-
-            line_start = start
-
-        cursor = len(lyric_line)
-
-        lyric_line += add
-
-        while len(chord_line) < len(lyric_line):
-            chord_line += " "
-
-        active_chords = []
-
-        for s in segs:
-
-            if (
-                s.end >= start
-                and s.start <= end
-                and s.chord != "N"
-            ):
-                active_chords.append(s)
-
-        for s in active_chords:
-
-            chord = s.chord
-
-            if chord == last_rendered_chord:
-                continue
-
-            key = (round(s.start, 2), chord)
-
-            if key in rendered:
-                continue
-
-            ratio = (s.start - start) / duration
-
-            ratio = max(0, min(ratio, 1))
-
-            offset = int(ratio * len(word))
-
-            pos = cursor + offset
-
-            while len(chord_line) < pos + len(chord):
-                chord_line += " "
-
-            overlap = False
-
-            for i in range(len(chord)):
-
-                if (
-                    pos + i < len(chord_line)
-                    and chord_line[pos + i] != " "
-                ):
-                    overlap = True
-                    break
-
-            if overlap:
-                pos += 2
-
-            while len(chord_line) < pos:
-                chord_line += " "
-
-            while (
-                pos < len(chord_line)
-                and any(
-                    c != " "
-                    for c in chord_line[pos:pos + len(chord)]
-                )
-            ):
-                pos += 1
-
-            if pos >= len(chord_line):
-
-                chord_line += " " * (
-                    pos - len(chord_line)
-                )
-
-                chord_line += chord
+                st.session_state.authenticated = True
+                st.experimental_rerun()
 
             else:
 
-                chord_line = (
-                    chord_line[:pos]
-                    + chord
-                    + chord_line[pos:]
+                st.error("Contraseña incorrecta")
+
+        st.stop()
+
+    st.title("Evaluación de canciones aleatorias")
+
+    eval_lang = st.selectbox(
+        "Idioma",
+        ["es"],
+        index=0,
+        key="eval_lang"
+    )
+
+    st.divider()
+
+    st.subheader("🎲 Generador canciones aleatorias")
+
+    num_songs = st.radio(
+        "Número de canciones",
+        [1, 9],
+        horizontal=True,
+        key="eval_num_songs"
+    )
+
+    if st.button(
+        "Generar canciones",
+        key="eval_generate_songs"
+    ):
+
+        st.session_state.eval_songs = get_random_songs(
+            num_songs
+        )
+
+        st.session_state.eval_selected_song = None
+        st.session_state.eval_preview_song = None
+        st.session_state.eval_selected_song_name = ""
+        st.session_state.eval_processed = False
+
+    if st.session_state.eval_songs:
+
+        st.subheader("Canciones")
+
+        num_cols = (
+            1
+            if len(st.session_state.eval_songs) == 1
+            else 3
+        )
+
+        cols = st.columns(num_cols)
+
+        for i, song_data in enumerate(
+            st.session_state.eval_songs
+        ):
+
+            with cols[i % num_cols]:
+
+                genre = song_data["genre"]
+                song = song_data["song"]
+
+                song_dir = (
+                    BASE_SONGS_DIR
+                    / genre
+                    / song
                 )
 
-            rendered.add(key)
+                preview_file = random.choice([
+                    song_dir / "A.mp3",
+                    song_dir / "B.mp3"
+                ])
 
-            last_rendered_chord = chord
-
-    # =========================
-    # última línea
-    # =========================
-
-    if lyric_line:
-
-        out.append(chord_line.rstrip())
-        out.append(lyric_line.rstrip())
-
-    return "\n".join(out)
-
-st.title("🎵 Acordes + letra sincronizada")
-
-lang = st.selectbox(
-    "Idioma",
-    #["auto", "es", "en"],
-    ["es"],
-    index=0
-)
-
-st.divider()
-
-st.subheader(
-    "🎲 Generador canciones aleatorias"
-)
-
-if st.button(
-    "Generar canciones"
-):
-
-    txt_random = get_random_songs_txt()
-
-    st.download_button(
-        label="⬇️ Descargar canciones",
-        data=txt_random,
-        file_name="canciones_random.txt",
-        mime="text/plain"
-    )
-
-if st.button(
-    "Generar 1 cancion"
-):
-
-    txt_random = get_random_songs_txt(genre="SONGS")
-
-    st.download_button(
-        label="⬇️ Descargar cancion",
-        data=txt_random,
-        file_name="cancion_random.txt",
-        mime="text/plain"
-    )
-
-mode = st.radio(
-    "Modo",
-    [
-        "Audio completo",
-        "Voz + instrumental separados"
-    ]
-)
-
-if mode == "Audio completo":
-
-    uploaded = st.file_uploader(
-        "Sube audio",
-        type=["mp3", "wav"],
-        key="full"
-    )
-
-    vocals_path = None
-    instrumental_path = None
-
-    if uploaded:
-
-        with tempfile.NamedTemporaryFile(
-            delete=False,
-            suffix=".mp3"
-        ) as tmp:
-
-            tmp.write(uploaded.read())
-
-            full_path = tmp.name
-
-        st.audio(full_path)
-
-        vocals_path = full_path
-        instrumental_path = full_path
-
-else:
-
-    vocals = st.file_uploader(
-        "Sube archivo de voz",
-        type=["mp3", "wav"],
-        key="vocals"
-    )
-
-    instrumental = st.file_uploader(
-        "Sube instrumental",
-        type=["mp3", "wav"],
-        key="instr"
-    )
-
-    vocals_path = None
-    instrumental_path = None
-
-    if vocals:
-
-        with tempfile.NamedTemporaryFile(
-            delete=False,
-            suffix=".mp3"
-        ) as tmp:
-
-            tmp.write(vocals.read())
-
-            vocals_path = tmp.name
-
-        st.audio(vocals_path)
-
-    if instrumental:
-
-        with tempfile.NamedTemporaryFile(
-            delete=False,
-            suffix=".mp3"
-        ) as tmp:
-
-            tmp.write(instrumental.read())
-
-            instrumental_path = tmp.name
-
-        st.audio(instrumental_path)
-
-if "processed" not in st.session_state:
-    st.session_state.processed = False
-
-if vocals_path and instrumental_path:
-
-    if st.button("Procesar"):
-
-        st.session_state.processed = False
-
-        with st.spinner("Procesando..."):
-
-            vocals_wav = convert_to_wav(vocals_path)
-            instrumental_wav = convert_to_wav(instrumental_path)
-
-            detector = DetectChords()
-
-            detector.build_models()
-
-            timeline = detector.predict(
-                instrumental_wav
-            )
-
-            segs = [
-                ChordSegment(
-                    t["start"],
-                    t["end"],
-                    t["chord"]
+                full_song = (
+                    song_dir
+                    / f"{song}.mp3"
                 )
-                for t in timeline
-            ]
 
-            words = transcribe_words(
-                vocals_wav,
-                None if lang == "auto" else lang
-            )
+                st.markdown(
+                    f"""
+                    <div style="
+                        height:120px;
+                        border:1px solid #ddd;
+                        border-radius:12px;
+                        display:flex;
+                        justify-content:center;
+                        align-items:center;
+                        text-align:center;
+                        padding:10px;
+                        margin-bottom:10px;
+                    ">
+                        <strong>{song}</strong>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
 
-            rows = merge_words(words, segs)
+                if st.button(
+                    "Elegir",
+                    key=f"eval_select_{genre}_{song}_{i}",
+                    use_container_width=True
+                ):
 
-            txt = build_text(
-                rows,
-                segs,
-                max_chars=64
-            )
+                    st.session_state.eval_preview_song = str(
+                        preview_file
+                    )
 
-            st.session_state.txt = txt
-            st.session_state.timeline = timeline
-            st.session_state.rows = rows
-            st.session_state.processed = True
+                    st.session_state.eval_selected_song = str(
+                        full_song
+                    )
 
-if st.session_state.processed:
+                    st.session_state.eval_selected_song_name = song
+                    st.session_state.eval_processed = False
 
-    txt = st.session_state.txt
-    timeline = st.session_state.timeline
-    rows = st.session_state.rows
+    if st.session_state.eval_selected_song:
 
-    st.success("Procesado!")
+        st.divider()
 
-    st.subheader("🎤 Letra con acordes")
+        st.subheader(
+            st.session_state.eval_selected_song_name
+        )
 
-    st.markdown(f"```\n{txt}\n```")
+        with open(
+            st.session_state.eval_preview_song,
+            "rb"
+        ) as f:
 
-    # TXT letra + acordes
-    st.download_button(
-        label="⬇️ Descargar letra + acordes",
-        data=txt,
-        file_name="letra_acordes.txt",
-        mime="text/plain"
-    )
+            audio_bytes = f.read()
 
-                # JSON timeline acordes
-    timeline_json = json.dumps(
-        timeline,
-        ensure_ascii=False,
-        indent=2
-    )
+        audio_base64 = base64.b64encode(
+            audio_bytes
+        ).decode()
 
-    st.download_button(
-        label="⬇️ Descargar timeline acordes JSON",
-        data=timeline_json,
-        file_name="timeline_acordes.json",
-        mime="application/json"
-    )
+        components.html(
+            f"""
+            <audio
+                controls
+                controlsList="nodownload noplaybackrate"
+                style="width:100%;">
+                <source
+                    src="data:audio/mp3;base64,{audio_base64}"
+                    type="audio/mpeg">
+            </audio>
+            """,
+            height=70
+        )
 
-                # CSV timeline acordes
-    csv_buffer = io.StringIO()
+        if st.button(
+            "Procesar canción",
+            key="eval_process_song"
+        ):
 
-    writer = csv.writer(csv_buffer)
+            with st.spinner("Procesando..."):
 
-    writer.writerow([
-        "start",
-        "end",
-        "chord"
-    ])
+                txt, timeline, rows = process_song(
+                    vocals_path=st.session_state.eval_selected_song,
+                    instrumental_path=st.session_state.eval_selected_song,
+                    language=eval_lang
+                )
 
-    for t in timeline:
+                st.session_state.eval_txt = txt
+                st.session_state.eval_timeline = timeline
+                st.session_state.eval_rows = rows
+                st.session_state.eval_processed = True
+
+    if st.session_state.eval_processed:
+
+        txt = st.session_state.eval_txt
+        timeline = st.session_state.eval_timeline
+        rows = st.session_state.eval_rows
+
+        st.success("Procesado!")
+
+        st.subheader("🎤 Letra con acordes")
+
+        st.markdown(
+            f"```\n{txt}\n```"
+        )
+
+        st.download_button(
+            label="⬇️ Descargar letra + acordes",
+            data=txt,
+            file_name="letra_acordes.txt",
+            mime="text/plain",
+            key="eval_download_txt"
+        )
+
+        timeline_json = json.dumps(
+            timeline,
+            ensure_ascii=False,
+            indent=2
+        )
+
+        st.download_button(
+            label="⬇️ Descargar timeline acordes JSON",
+            data=timeline_json,
+            file_name="timeline_acordes.json",
+            mime="application/json",
+            key="eval_download_chords_json"
+        )
+
+        csv_buffer = io.StringIO()
+        writer = csv.writer(csv_buffer)
 
         writer.writerow([
-            t["start"],
-            t["end"],
-            t["chord"]
+            "start",
+            "end",
+            "chord"
         ])
 
-    st.download_button(
-        label="⬇️ Descargar timeline acordes CSV",
-        data=csv_buffer.getvalue(),
-        file_name="timeline_acordes.csv",
-        mime="text/csv"
-    )
+        for t in timeline:
 
-                # Timeline letra
-    lyrics_timeline = []
+            writer.writerow([
+                t["start"],
+                t["end"],
+                t["chord"]
+            ])
 
-    for r in rows:
+        st.download_button(
+            label="⬇️ Descargar timeline acordes CSV",
+            data=csv_buffer.getvalue(),
+            file_name="timeline_acordes.csv",
+            mime="text/csv",
+            key="eval_download_chords_csv"
+        )
 
-        lyrics_timeline.append({
-            "word": r["word"],
-            "start": r["start"],
-            "end": r["end"]
-        })
+        lyrics_timeline = [
+            {
+                "word": r["word"],
+                "start": r["start"],
+                "end": r["end"]
+            }
+            for r in rows
+        ]
 
-                # JSON letra
-    lyrics_json = json.dumps(
-        lyrics_timeline,
-        ensure_ascii=False,
-        indent=2
-    )
+        lyrics_json = json.dumps(
+            lyrics_timeline,
+            ensure_ascii=False,
+            indent=2
+        )
 
-    st.download_button(
-        label="⬇️ Descargar timeline letra JSON",
-        data=lyrics_json,
-        file_name="timeline_letra.json",
-        mime="application/json"
-    )
+        st.download_button(
+            label="⬇️ Descargar timeline letra JSON",
+            data=lyrics_json,
+            file_name="timeline_letra.json",
+            mime="application/json",
+            key="eval_download_lyrics_json"
+        )
 
-                # CSV letra
-    lyrics_csv = io.StringIO()
-
-    writer = csv.writer(lyrics_csv)
-
-    writer.writerow([
-        "word",
-        "start",
-        "end"
-    ])
-
-    for w in lyrics_timeline:
+        lyrics_csv = io.StringIO()
+        writer = csv.writer(lyrics_csv)
 
         writer.writerow([
-            w["word"],
-            w["start"],
-            w["end"]
+            "word",
+            "start",
+            "end"
         ])
 
-    st.download_button(
-        label="⬇️ Descargar timeline letra CSV",
-        data=lyrics_csv.getvalue(),
-        file_name="timeline_letra.csv",
-        mime="text/csv"
-    )
+        for w in lyrics_timeline:
+
+            writer.writerow([
+                w["word"],
+                w["start"],
+                w["end"]
+            ])
+
+        st.download_button(
+            label="⬇️ Descargar timeline letra CSV",
+            data=lyrics_csv.getvalue(),
+            file_name="timeline_letra.csv",
+            mime="text/csv",
+            key="eval_download_lyrics_csv"
+        )
